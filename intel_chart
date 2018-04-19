@@ -1,0 +1,209 @@
+import tkinter
+from tkinter import filedialog
+from tkinter import *
+import pandas as pd
+import json
+import geocoder  
+import numpy as np
+import matplotlib.pyplot as plt
+import pymysql as mariadb
+import pycountry
+
+class UI(Frame):
+    def __init__(self, master=None):
+        Frame.__init__(self, master)
+        self.grid()
+        self.master.title("Intelligence Chart")
+        self.master.geometry("680x400")
+        self.show()
+        
+    def show(self):
+        self.frm = Frame(self.master)
+        self.frm.grid(row=1, column=0, sticky=N+S)
+        self.master.rowconfigure(1, weight=1)
+        self.master.columnconfigure(1, weight=1)
+           
+        self.open_text = tkinter.Label(master,text="Open file")
+        self.open_text.grid(row=0,column=0,sticky=E+W)
+        self.listbox = tkinter.Listbox(master,height = 2)
+        self.list_data = ["Excel","Text file","JSON file"]
+        self.listbox.grid(row = 1, column = 0,rowspan = 2,columnspan = 3, sticky = W+E+N+S)
+        self.listbox.bind('<<ListboxSelect>>', self.onselect)
+        self.show_listbox()
+        
+    def show_listbox(self):
+        for i in self.list_data:
+              self.listbox.insert("end",i)
+    
+    def onselect(self,event):
+        w = event.widget
+        get = int(w.curselection()[0])
+        
+        if get == 0 :
+            master.filename =  filedialog.askopenfilename(initialdir = "C:/Users/teer/Work_BuildingII",title = "Select file",filetypes = (('excel files', '*.xls *.xlsx *.xlsm'),("All files", "*.*")))
+            self.filename = master.filename
+            if self.filename != "" :
+                self.convert_file()
+        elif get == 1:
+            master.filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (('text files', 'txt'),("All files", "*.*")))
+            self.filename = master.filename
+            if self.filename != "" :
+                self.convert_file()
+        elif get == 2:
+            master.filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (('JSON files', '*.json'),("All files", "*.*")))
+            self.filename = master.filename
+            if self.filename != "" :
+                self.convert_file()
+                
+    def onselect_dimen(self,event):
+        self.select_dimen = []
+        
+        w = event.widget
+        get = int(w.curselection()[0])
+        #get_dim = w.curselection()
+        #value = int(w.get(get_dim[0]))
+        self.dimen_txt = tkinter.Label(master,text="Dimensions : "+self.Dimensions[get])
+        self.dimen_txt.grid(row=0,column=1,sticky=E+W)
+        #print(self.Dimensions[get])
+        
+    def onselect_mea(self,event):
+        self.select_mea = []
+        w = event.widget
+        get = int(w.curselection()[0])
+        #get_dim = w.curselection()
+        #value = int(w.get(get_dim[0]))
+        self.mea_txt = tkinter.Label(master,text="Measures : "+self.Measures[get])
+        self.mea_txt.grid(row=0,column=2,sticky=E+W)
+        #print(self.Dimensions[get])
+
+
+    def convert_file(self):
+        self.open_text.grid_remove() # remove widget
+        self.listbox.grid_remove()
+        df = pd.read_excel(open(self.filename,'rb'))
+        col_name = list(df)
+        col_type = df.dtypes
+        self.Dimensions = []
+        self.Measures = []
+        # check column type 
+        for i in range(len(col_type)):
+            # if column is numeric type
+            if(str(col_type[i]) == 'object'):
+                #print(col_name[i])
+                #check = True
+                #for index, row in df.iterrows():
+                #    c = row[col_name[i]]
+                #    print(c)                    
+                #    gn = geocoder.google("")
+                #    if (gn.latlng == 'None') :
+                #        check = False
+                #        break
+                #print(check)
+                self.Dimensions.append(col_name[i])
+            elif(str(col_type[i]) == 'datetime64[ns]'):
+                #print(col_type[i])
+                self.Dimensions.append(col_name[i])
+                
+            else :
+                #print(col_name[i])
+                unique_elements = np.unique(pd.DataFrame(df, columns = [col_name[i]]))
+                #print(len(unique_elements))
+                #print(len(df.index))
+                if len(unique_elements) == len(df.index) :
+                    self.Dimensions.append(col_name[i])
+                else :
+                    self.Measures.append(col_name[i])
+                    
+        self.Dimensions.sort()
+        self.Measures.sort()
+        self.Dimensions.append("Measure Names")
+        self.Measures.extend(["Number of Records","Measure Values"])
+        
+        
+        self.text_dimen = tkinter.Label(master,text="Dimensions")
+        self.text_dimen.grid(row=0,column=0,sticky=E+W)
+        self.text_mea = tkinter.Label(master,text="Measures")
+        self.text_mea.grid(row=3,column=0,sticky=E+W)
+        
+        self.list_dimention = tkinter.Listbox(master,height = 1)
+        self.list_measure = tkinter.Listbox(master,height = 1)
+        self.list_dimention.grid(row = 1, column = 0, sticky="nsew")
+        self.list_measure.grid(row =4,column = 0, sticky="nsew")
+        
+        self.scroll_di = tkinter.Scrollbar(master,orient=tkinter.VERTICAL)
+        self.scroll_di.grid(row=1, column=1, sticky=tkinter.NW+tkinter.S)
+        self.list_dimention.config(yscrollcommand=self.scroll_di.set)
+        self.scroll_di.config(command=self.list_dimention.yview)
+        
+        self.scroll_mea = tkinter.Scrollbar(master,orient=tkinter.VERTICAL)
+        self.scroll_mea.grid(row=4, column=1, sticky=tkinter.NW+tkinter.S)
+        self.list_measure.config(yscrollcommand=self.scroll_mea.set)
+        self.scroll_mea.config(command=self.list_measure.yview)
+        
+        self.list_dimention.bind('<<ListboxSelect>>', self.onselect_dimen)
+        self.list_measure.bind('<<ListboxSelect>>', self.onselect_mea)
+        
+        for i in self.Dimensions:
+              self.list_dimention.insert("end",i)
+        for i in self.Measures:
+              self.list_measure.insert("end",i)
+                
+        #elf.listbox.bind('<<ListboxSelect>>', self.onselect)
+        #    f = pd.DataFrame(df, columns = [col[i]])
+            #print(f.dtypes)
+        #print(col)
+        #print(df.)
+        #rows = []
+        #melted = pd.melt(df, id_vars=col,)
+        #print(melted[0])
+        #for i in range(len(melted)):
+        #    print(melted[i].dtype)
+        #for i in range(5):
+        #    cols = []
+        #    for j in range(4):
+        #        e = Entry(relief=RIDGE)
+        #        e.grid(row=i, column=j, sticky=NSEW)
+        #        e.insert(END, '%s' % (i, j))
+        #       cols.append(e)
+        #        rows.append(cols)
+
+        
+class Intel_chart(Frame): 
+    
+    def __init__(self, master=None):
+        Frame.__init__(self, master)
+            
+                    
+    def check_database(self):
+        
+        encode = self.md5sum(self.filename) # check encode read
+        # defind database
+        mariadb_connection = mariadb.connect(user="root", password="0897737223", database='chart') 
+        cursor = mariadb_connection.cursor()
+        sql = "SELECT id FROM file where code ='%s' " % (encode)
+        # Execute the SQL command
+        cursor.execute(sql)
+        no = cursor.fetchall()
+        check = False
+        if len(no) != 0 :
+            check = True
+        else:
+            sql = "SELECT COUNT(*) FROM file"
+            cursor.execute(sql)
+            no = cursor.fetchall()
+            no = no[0][0] + 1
+            
+        if check == False :
+            sql = "INSERT INTO file(id, code) VALUES(%s, %s)"
+            data_insert = (no,encode)
+            # Execute the SQL command
+            cursor.execute(sql,data_insert)
+            # Commit your changes in the database
+            mariadb_connection.commit()
+       
+            
+master = Tk()
+app = UI(master)
+app.mainloop()
+
+
